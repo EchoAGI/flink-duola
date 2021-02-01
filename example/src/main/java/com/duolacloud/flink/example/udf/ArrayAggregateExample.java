@@ -1,7 +1,6 @@
 package com.duolacloud.flink.example.udf;
 
 import com.duolacloud.flink.sql.udf.ArrayAggregateFunction;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -12,11 +11,7 @@ public class ArrayAggregateExample {
         env.setParallelism(1);
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
 
-        tEnv.registerFunction("ARRAY_AGG", new ArrayAggregateFunction(
-                Types.STRING,
-                Types.DOUBLE,
-                Types.LONG
-        ));
+        tEnv.registerFunction("ARRAY_AGG", new ArrayAggregateFunction());
 
         tEnv.executeSql("CREATE TABLE orders(\n" +
                 "  id STRING PRIMARY KEY NOT ENFORCED,\n" +
@@ -67,7 +62,8 @@ public class ArrayAggregateExample {
                 "  'index' = 'order_view'\n" +
                 ")");
 
-        tEnv.executeSql("INSERT INTO order_view_items SELECT order_id, ARRAY_AGG(product_id, price, quantity) FROM order_items GROUP BY order_id");
+        TableResult r = tEnv.executeSql("INSERT INTO order_view_items SELECT order_id, ARRAY_AGG(product_id, price, quantity) FROM order_items GROUP BY order_id");
+        r.print();
 
         try {
             System.in.read();

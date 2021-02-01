@@ -1,10 +1,12 @@
 package com.duolacloud.flink.sql.udf;
 
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.data.ArrayData;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.Row;
-import org.apache.flink.table.functions.AggregateFunction;
-import org.apache.flink.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,47 +16,54 @@ import java.util.List;
  */
 
 
-public class ArrayAggregateFunction extends AggregateFunction<Row[], List<Row>> {
-    private final TypeInformation<?>[] types;
-
-    public ArrayAggregateFunction(TypeInformation ...types) {
-        Preconditions.checkNotNull(types, "Type information");
-        this.types = types;
-    }
-
+public class ArrayAggregateFunction extends InternalAggregateFunction<ArrayData, List<RowData>> {
     @Override
-    public List<Row> createAccumulator() {
+    public List<RowData> createAccumulator() {
         return new ArrayList<>();
     }
 
     @Override
-    public Row[] getValue(List<Row> acc) {
-        return acc.toArray(new Row[0]);
+    public ArrayData getValue(List<RowData> acc) {
+        GenericArrayData arr = new GenericArrayData(acc.toArray(new RowData[0]));
+        return arr;
     }
 
-    public void merge(List<Row> accumulator, Iterable<List<Row>> iterable) {
-        for (List<Row> otherAcc : iterable) {
+    public void merge(List<RowData> accumulator, Iterable<List<RowData>> iterable) {
+        for (List<RowData> otherAcc : iterable) {
             accumulator.addAll(otherAcc);
         }
     }
 
-    public void accumulate(List<Row> acc, Object... columns) {
+    public void accumulate(List<RowData> acc, Object... columns) {
         System.out.printf("accumulate: %s\n", columns);
-        acc.add(Row.of(columns));
+        GenericRowData row = new GenericRowData(columns.length);
+        for (int i=0;i<columns.length;i++) {
+            row.setField(i, columns[i]);
+        }
+        acc.add(row);
     }
 
-    public void retract(List<Row> acc, Object... columns) {
+    public void retract(List<Row> acc, RowData value) {
         System.out.printf("retract\n");
     }
 
     @Override
-    public TypeInformation<Row[]> getResultType() {
-        return Types.OBJECT_ARRAY(Types.ROW(types));
+    public DataType[] getInputDataTypes() {
+        return new DataType[]{DataTypes.ROW().bridgedTo(RowData.class)};
     }
 
     @Override
-    public TypeInformation<List<Row>> getAccumulatorType() {
-        Class<List<Row>> clazz = (Class<List<Row>>) (Class) List.class;
-        return TypeInformation.of(clazz);
+    public DataType getAccumulatorDataType() {
+        return DataTypes.ARRAY(DataTypes.ROW());
+    }
+
+    @Override
+    public DataType getOutputDataType() {
+        return DataTypes.ARRAY(DataTypes.ROW()).bridgedTo(ArrayData.class);
+    }
+
+    @Override
+    public boolean isDeterministic() {
+        return false;
     }
 }
